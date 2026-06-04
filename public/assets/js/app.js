@@ -1,5 +1,5 @@
 /* ============================================================
-   SafeChat v1.0 – Application Script
+   SafeChat v0.1.0 – Application Script
    ============================================================ */
 'use strict';
 
@@ -39,7 +39,9 @@ async function postApi(fd) {
   const action = fd.get('action');
   if (action) fd.delete('action');
   const url = action ? apiPath(action) : '/api';
-  const r = await fetch(url, { method: 'POST', body: fd });
+  const headers = {};
+  if (CSRF && typeof CSRF === 'string' && CSRF.length === 64) headers['X-CSRF-Token'] = CSRF;
+  const r = await fetch(url, { method: 'POST', body: fd, headers, credentials: 'same-origin' });
   syncCsrfFromResponse(r);
   let d;
   try { d = await r.json(); } catch { d = { error: 'پاسخ نامعتبر از سرور' }; }

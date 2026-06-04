@@ -15,12 +15,13 @@ class VerifySafeChatCsrf
 
     public function handle(Request $request, Closure $next): Response
     {
-        // Only accept token from POST body, not from query string or headers
-        // This prevents CSRF tokens being stolen via Referer/URL logging
         $field = $this->csrf->fieldName();
         $token = $request->isJson()
             ? (string) $request->json($field, '')
             : (string) $request->request->get($field, '');
+        if ($token === '') {
+            $token = (string) $request->header('X-CSRF-Token', '');
+        }
 
         if (! $this->csrf->verify($token)) {
             return response()->json([
