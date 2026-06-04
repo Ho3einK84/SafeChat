@@ -2,10 +2,8 @@
    SafeChat v0.1.0 – Service Worker
    ============================================================ */
 
-const CACHE = 'safechat-v2';
+const CACHE = 'safechat-v3';
 const ASSETS = [
-  '/',
-  '/index.php',
   '/manifest.json',
   '/assets/css/style.css',
   '/assets/js/app.js'
@@ -33,9 +31,11 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   
-  // Network-first for API, cache-first for assets
+  // Network-first for API and navigations, cache-first for static assets
   const url = new URL(e.request.url);
   if (url.pathname.startsWith('/api/')) {
+    e.respondWith(networkFirst(e.request));
+  } else if (e.request.mode === 'navigate' || (e.request.headers.get('accept') || '').includes('text/html')) {
     e.respondWith(networkFirst(e.request));
   } else {
     e.respondWith(cacheFirst(e.request));
