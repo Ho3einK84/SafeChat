@@ -529,10 +529,10 @@ async function makeBubble(msg) {
   } else {
     let text = msg.content || '';
     const groupId = getMsgGroupId(msg);
-    if (groupId && !msgHasPassword(msg) && msg.content) {
+    if (groupId && msg.content && (!msgHasPassword(msg) || mine)) {
       try { text = await decryptGroupMessage(msg.content, groupId); }
       catch { text = 'خطا در رمزگشایی گروه'; }
-    } else if (chat?.type === 'private' && !msgHasPassword(msg) && msg.content) {
+    } else if (chat?.type === 'private' && msg.content && (!msgHasPassword(msg) || mine)) {
       try { text = await decryptPrivateMessage(msg.content, mine); }
       catch { text = 'خطا در رمزگشایی'; }
     }
