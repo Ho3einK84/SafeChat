@@ -4,11 +4,14 @@ use App\Http\Middleware\DeviceAuth;
 use App\Http\Middleware\RateLimitSafeChat;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\VerifySafeChatCsrf;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use App\Services\CsrfService;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Log;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -25,6 +28,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->api(prepend: [
+            EncryptCookies::class,
+            AddQueuedCookiesToResponse::class,
+            StartSession::class,
             SecurityHeaders::class,
         ]);
 

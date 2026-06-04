@@ -35,18 +35,58 @@ function apiPath(action) {
   return '/api/' + String(action).replace(/_/g, '-');
 }
 
-async function postApi(fd) {
+function applyCsrf(fd, headers) {
+  if (!(fd instanceof FormData) || !CSRF || typeof CSRF !== 'string' || CSRF.length !== 64) return;
+  fd.set(CSRF_FIELD, CSRF);
+  headers['X-CSRF-Token'] = CSRF;
+}
+
+async function parseJsonSafe(r) {
+  try { return await r.json(); } catch { return null; }
+}
+
+async function postApi(fd, retried = false) {
   const action = fd.get('action');
   if (action) fd.delete('action');
   const url = action ? apiPath(action) : '/api';
-  const headers = {};
-  if (CSRF && typeof CSRF === 'string' && CSRF.length === 64) headers['X-CSRF-Token'] = CSRF;
+  const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+  applyCsrf(fd, headers);
   const r = await fetch(url, { method: 'POST', body: fd, headers, credentials: 'same-origin' });
   syncCsrfFromResponse(r);
-  let d;
-  try { d = await r.json(); } catch { d = { error: 'پاسخ نامعتبر از سرور' }; }
+  let d = await parseJsonSafe(r);
+  if (r.status === 403 && !retried && d?.csrf && typeof d.csrf === 'string' && d.csrf.length === 64) {
+    syncCsrf(d);
+    if (action) fd.append('action', action);
+    return postApi(fd, true);
+  }
+  if (!d) d = { error: 'پاسخ نامعتبر از سرور' };
   syncCsrf(d);
+  if (action) fd.append('action', action);
   return d;
+}
+
+async function postBlobApi(fd, retried = false) {
+  const action = fd.get('action');
+  if (action) fd.delete('action');
+  const url = action ? apiPath(action) : '/api';
+  const headers = { 'X-Requested-With': 'XMLHttpRequest' };
+  applyCsrf(fd, headers);
+  const r = await fetch(url, { method: 'POST', body: fd, headers, credentials: 'same-origin' });
+  syncCsrfFromResponse(r);
+  if (r.status === 403) {
+    const d = await parseJsonSafe(r);
+    syncCsrf(d);
+    if (!retried && d?.csrf && typeof d.csrf === 'string' && d.csrf.length === 64) {
+      if (action) fd.append('action', action);
+      return postBlobApi(fd, true);
+    }
+    throw new Error(d?.error || 'درخواست نامعتبر است');
+  }
+  if (!r.ok) {
+    throw new Error('خطا در دریافت خروجی');
+  }
+  if (action) fd.append('action', action);
+  return r;
 }
 
 const CRYPTO_STORE = 'safechat_keys';
@@ -843,9 +883,7 @@ async function exportChat(format) {
     fd.append('action', 'export_chat');
     fd.append('other_id', chat.id);
     fd.append('format', format);
-    fd.append(CSRF_FIELD, CSRF);
-    const r = await fetch(apiPath('export_chat'), { method: 'POST', body: fd });
-    syncCsrfFromResponse(r);
+    const r = await postBlobApi(fd);
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
