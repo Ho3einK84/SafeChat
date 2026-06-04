@@ -10,7 +10,10 @@ final class CsrfService
             session()->start();
         }
 
-        if ($regenerate || ! session()->has($this->sessionKey())) {
+        if ($regenerate) {
+            session()->forget($this->previousSessionKey());
+            session()->put($this->sessionKey(), bin2hex(random_bytes(32)));
+        } elseif (! session()->has($this->sessionKey())) {
             session()->put($this->sessionKey(), bin2hex(random_bytes(32)));
         }
 
@@ -24,19 +27,23 @@ final class CsrfService
         }
 
         $stored = session($this->sessionKey());
+        $previous = session($this->previousSessionKey());
 
         if (! is_string($stored) || $stored === '') {
             return false;
         }
 
-        $valid = hash_equals($stored, $token);
-
-        // Rotate token on every valid submission to prevent replay attacks
-        if ($valid) {
+        if (hash_equals($stored, $token)) {
+            session()->put($this->previousSessionKey(), $stored);
             session()->put($this->sessionKey(), bin2hex(random_bytes(32)));
+            return true;
         }
 
-        return $valid;
+        if (is_string($previous) && $previous !== '' && hash_equals($previous, $token)) {
+            return true;
+        }
+
+        return false;
     }
 
     public function fieldName(): string
@@ -47,5 +54,10 @@ final class CsrfService
     private function sessionKey(): string
     {
         return 'safechat_csrf';
+    }
+
+    private function previousSessionKey(): string
+    {
+        return 'safechat_csrf_prev';
     }
 }
